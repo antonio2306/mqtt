@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:aop="http://www.springframework.org/schema/aop" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:couchbase="http://www.springframework.org/schema/data/couchbase"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+       http://www.springframework.org/schema/data/couchbase
+       http://www.springframework.org/schema/data/couchbase/spring-couchbase.xsd">
+	
+	<couchbase:couchbase id="cb1" bucket="test" password="test" host="192.168.12.203"/>
+    <couchbase:template id="cb-template-2nd" client-ref="cb1"/>
+    <couchbase:repositories base-package="com.zeze.demo.cache.repository" couchbase-template-ref="cb-template-2nd"/>
+    
+</beans>
