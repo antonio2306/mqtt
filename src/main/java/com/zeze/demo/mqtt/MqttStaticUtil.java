@@ -26,6 +26,5 @@ public class MqttStaticUtil {
 	
 	public static PushMessageCache pushMessageCache = new PushMessageCache();
 		
-	
 	public static Map<String, Object> nativeCache = new ConcurrentHashMap<String, Object>();
 }

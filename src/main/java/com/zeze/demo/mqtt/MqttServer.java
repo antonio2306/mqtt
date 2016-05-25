@@ -28,7 +28,6 @@ public class MqttServer {
 				}
 			}
 		});
-		
     	t.start();
 		
 	}

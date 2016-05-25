@@ -40,6 +40,8 @@ import io.netty.handler.codec.mqtt.MqttSubAckPayload;
 import io.netty.handler.codec.mqtt.MqttSubscribeMessage;
 import io.netty.handler.codec.mqtt.MqttSubscribePayload;
 import io.netty.handler.codec.mqtt.MqttTopicSubscription;
+import io.netty.handler.codec.mqtt.MqttUnsubscribeMessage;
+import io.netty.handler.codec.mqtt.MqttUnsubscribePayload;
 import io.netty.handler.timeout.IdleStateHandler;
 
 /**
@@ -146,7 +148,7 @@ public class MqttServerHandler extends ChannelHandlerAdapter {
 
 	@Override
 	public void channelInactive(ChannelHandlerContext ctx) throws Exception { // (6)
-
+		
 	}
 	
 	/**
@@ -303,6 +305,34 @@ public class MqttServerHandler extends ChannelHandlerAdapter {
 	public MqttMessage unsubscribe(MqttMessage mqttMessage, 
 			Channel ch) {
 		
+		MqttUnsubscribeMessage mqttUnsubscribeMessage = (MqttUnsubscribeMessage) mqttMessage;
+		MqttMessageIdVariableHeader mqttMessageIdVariableHeader = mqttUnsubscribeMessage.variableHeader();
+		MqttUnsubscribePayload mqttUnsubscribePayload = mqttUnsubscribeMessage.payload();
+		
+		String clientId = (String) MqttStaticUtil.nativeCache.get(ch.id().asLongText());
+		ClientMapper clientMapper = (ClientMapper) MqttStaticUtil.nativeCache.get(clientId);
+		Integer messageId = mqttMessageIdVariableHeader.messageId();
+		
+		List<String> topics = mqttUnsubscribePayload.topics();
+		
+		for (String topic : topics) {
+			SubscriberMapper subscriberMapper = (SubscriberMapper) MqttStaticUtil.nativeCache.get(topic);
+			if (subscriberMapper != null) {
+				List<SubClient> subscribers = subscriberMapper.getSubscribers();
+				if (subscribers != null) {
+					for (SubClient subClient : subscribers) {
+						if (subClient.getClientId() == clientId) {
+							subscribers.remove(subClient);
+							break;
+						}
+					}
+					subscriberMapper.setSubscribers(subscribers);
+					continue;
+				}
+			}
+			MqttStaticUtil.nativeCache.put(topic, subscriberMapper);
+		}
+		
 		return null;
 	}
 	
@@ -337,23 +367,55 @@ public class MqttServerHandler extends ChannelHandlerAdapter {
 	public MqttMessage pubrec(MqttMessage mqttMessage, 
 			Channel ch) {
 		
-		return null;
+		MqttFixedHeader mqttFixedHeader = mqttMessage.fixedHeader();
+		MqttFixedHeader mqttFixedHeaderPubrec = new MqttFixedHeader(
+				MqttMessageType.PUBREC, 
+				mqttFixedHeader.isDup(), 
+				mqttFixedHeader.qosLevel(), 
+				mqttFixedHeader.isRetain(), 
+				mqttFixedHeader.remainingLength());
+		
+		MqttMessage mqttMessageack = new MqttMessage(mqttFixedHeaderPubrec, mqttMessage.variableHeader());
+		return mqttMessageack;
 	}
 	
 	public MqttMessage pubrel(MqttMessage mqttMessage, 
 			Channel ch) {
 		
-		return null;
+		MqttFixedHeader mqttFixedHeader = mqttMessage.fixedHeader();
+		MqttFixedHeader mqttFixedHeaderPubrec = new MqttFixedHeader(
+				MqttMessageType.PUBREL, 
+				mqttFixedHeader.isDup(), 
+				mqttFixedHeader.qosLevel(), 
+				mqttFixedHeader.isRetain(), 
+				mqttFixedHeader.remainingLength());
+		
+		MqttMessage mqttMessageack = new MqttMessage(mqttFixedHeaderPubrec, mqttMessage.variableHeader());
+		return mqttMessageack;		
 	}
 	
 	public MqttMessage pubcomp(MqttMessage mqttMessage, 
 			Channel ch) {
+		MqttFixedHeader mqttFixedHeader = mqttMessage.fixedHeader();
+		MqttFixedHeader mqttFixedHeaderPubrec = new MqttFixedHeader(
+				MqttMessageType.PUBCOMP, 
+				mqttFixedHeader.isDup(), 
+				mqttFixedHeader.qosLevel(), 
+				mqttFixedHeader.isRetain(), 
+				mqttFixedHeader.remainingLength());
 		
-		return null;
+		MqttMessage mqttMessageack = new MqttMessage(mqttFixedHeaderPubrec, mqttMessage.variableHeader());
+		return mqttMessageack;
 	}
 	
 	
 	public void disconnect(Channel ch) {
+
+		String clientId = (String) MqttStaticUtil.nativeCache.get(ch.id().asLongText());
+		ClientMapper clientMapper = (ClientMapper) MqttStaticUtil.nativeCache.get(clientId);
+		
+		MqttStaticUtil.nativeCache.remove(clientMapper);
+		MqttStaticUtil.nativeCache.remove(ch.id().asLongText());
 		
 	}
 }
