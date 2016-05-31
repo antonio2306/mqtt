@@ -2,8 +2,6 @@ package com.zeze.demo.service.impl;
 
 
 import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -68,7 +66,6 @@ public class MqttPublishServiceImpl implements MqttPublishService {
 			}
 		}
 		MqttStaticUtil.nativeCache.remove(cid.asLongText());
-		
 		return "message sent!";
 	}
 
@@ -76,37 +73,27 @@ public class MqttPublishServiceImpl implements MqttPublishService {
 	@Override
 	public String checkWaitAndSendMsg(String clientId, Object msg) {
 		
+		ClientMapper clientMapper = (ClientMapper) MqttStaticUtil.nativeCache.get(clientId);
+		ChannelId cid = clientMapper.getChannelId();
+		ChannelStatusMapper channelStatusMapper = 
+				(ChannelStatusMapper) MqttStaticUtil.nativeCache.get(cid.asLongText());
+		Channel ch = MqttServerHandler.channelGroup.find(cid);
 		
-		
-		
-		return null;
-	}
-	
-	
-	@Override
-	public String publishMsg(MqttPublishMessage mqttPublishMessage,
-			MqttQoS publishQos) {
-		
-		String topicName = mqttPublishMessage.variableHeader().topicName();
-		List<String> clientIds;
-		switch (publishQos) {
-		case AT_MOST_ONCE:
-			clientIds = MqttStaticUtil.topicSubsribers
-				.get(topicName).get(MqttQoS.AT_LEAST_ONCE.value());
-			for (String clientId : clientIds) {
-				executor.execute(new SendTask(clientId, mqttPublishMessage));
+		for (int i=0; i<repeatTimes; i++) {
+			if (channelStatusMapper.getStatus() != MqttMessageType.PUBREL &&
+					channelStatusMapper.getStatus() != MqttMessageType.PUBCOMP) {
+				ch.writeAndFlush(msg);
 			}
-			break;
-		case AT_LEAST_ONCE:
-			
-			break;
-		case EXACTLY_ONCE:
-			
-			break;
-		default:
-			break;
+			try {
+				Thread.currentThread();
+				Thread.sleep(5000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
-		return null;
+		MqttStaticUtil.nativeCache.remove(cid.asLongText());
+		return "message sent!";
 	}
 	
 	@Override
@@ -133,7 +120,9 @@ public class MqttPublishServiceImpl implements MqttPublishService {
 	@Override
 	public String publishMsgExactlyOnce(MqttPublishMessage mqttPublishMessage, List<String> clientIds) {
 		
-		
+		for (String clientId : clientIds) {
+			executor.execute(new CheckWaitAndSendMsg(clientId, mqttPublishMessage));
+		}
 		return null;
 	}
 	
@@ -169,22 +158,21 @@ public class MqttPublishServiceImpl implements MqttPublishService {
 		}
 	}
 	
-	
-	
-	class SendTimerTask extends TimerTask {
+
+	class CheckWaitAndSendMsg implements Runnable {
 
 		private String clientId;
 		private Object msg;
 		
-		public SendTimerTask(String clientId, Object msg) {
+		public CheckWaitAndSendMsg(String clientId, Object msg) {
 			this.clientId = clientId;
 			this.msg = msg;
 		}
 		
 		@Override
 		public void run() {
-			checkAndSendMsg(clientId, msg);
+			checkWaitAndSendMsg(clientId, msg);
 		}
 	}
-
+	
 }

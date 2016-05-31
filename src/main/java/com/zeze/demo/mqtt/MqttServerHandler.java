@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.zeze.demo.cache.mapper.ChannelStatusMapper;
 import com.zeze.demo.cache.mapper.ClientMapper;
 import com.zeze.demo.cache.mapper.MqttClientMapper;
 import com.zeze.demo.cache.mapper.PublishedMessageMapper;
@@ -216,40 +217,32 @@ public class MqttServerHandler extends ChannelHandlerAdapter {
 		
 		MqttFixedHeader mqttFixedHeader = mqttPublishMessage.fixedHeader();
 		
+		String topicName = mqttPublishMessage.variableHeader().topicName();
+		SubscriberMapper subscriberMapper = (SubscriberMapper) MqttStaticUtil.nativeCache.get(topicName);
+		if (subscriberMapper == null) {
+			return null;
+		}
+		List<SubClient> subscribers = subscriberMapper.getSubscribers();
+		if (subscribers == null) {
+			return null;
+		}
+		List<String> clientIds = new ArrayList<String>();
+		for (SubClient subscriber : subscribers) {
+			clientIds.add(subscriber.getClientId());
+		}
+		ChannelStatusMapper channelStatusMapper = new ChannelStatusMapper();
+		channelStatusMapper.setStatus(MqttMessageType.PUBLISH);
+		MqttStaticUtil.nativeCache.put(ch.id().asLongText(), channelStatusMapper);
+		
 		switch(mqttFixedHeader.qosLevel()) {
 		case AT_MOST_ONCE:
-			String topicName = mqttPublishMessage.variableHeader().topicName();
-			SubscriberMapper subscriberMapper = (SubscriberMapper) MqttStaticUtil.nativeCache.get(topicName);
-			if (subscriberMapper == null) {
-				return null;
-			}
-			List<SubClient> subscribers = subscriberMapper.getSubscribers();
-			if (subscribers == null) {
-				return null;
-			}
-			List<String> clientIds = new ArrayList<String>();
-			for (SubClient subscriber : subscribers) {
-				clientIds.add(subscriber.getClientId());
-			}
 			mqttPublishServiceImpl.publishMsgAtMostOnce(mqttPublishMessage, clientIds);
 			break;
 		case AT_LEAST_ONCE:
-			String topicName1 = mqttPublishMessage.variableHeader().topicName();
-			SubscriberMapper subscriberMapper1 = (SubscriberMapper) MqttStaticUtil.nativeCache.get(topicName1);
-			if (subscriberMapper1 == null) {
-				return null;
-			}
-			List<SubClient> subscribers1 = subscriberMapper1.getSubscribers();
-			if (subscribers1 == null) {
-				return null;
-			}
-			List<String> clientIds1 = new ArrayList<String>();
-			for (SubClient subscriber : subscribers1) {
-				clientIds1.add(subscriber.getClientId());
-			}
-			mqttPublishServiceImpl.publishMsgAtleastOnce(mqttPublishMessage, clientIds1);
+			mqttPublishServiceImpl.publishMsgAtleastOnce(mqttPublishMessage, clientIds);
 			break;
 		case EXACTLY_ONCE:
+			mqttPublishServiceImpl.publishMsgExactlyOnce(mqttPublishMessage, clientIds);
 			break;
 		case FAILURE:
 			break;
@@ -350,32 +343,41 @@ public class MqttServerHandler extends ChannelHandlerAdapter {
 			Channel ch) {
 		
 		MqttPubAckMessage mqttPubAckMessage = (MqttPubAckMessage) mqttMessage;
-		
 		MqttMessageIdVariableHeader mqttMessageIdVariableHeader = mqttPubAckMessage.variableHeader();
 		
 		Integer messageId = mqttMessageIdVariableHeader.messageId();
 		String clientId = (String) MqttStaticUtil.nativeCache.get(ch.id().asLongText());
 		String publishId = clientId + messageId.toString();
 		
-		PublishedMessageMapper publishedMessageMapper = 
-				(PublishedMessageMapper) MqttStaticUtil.nativeCache.get(publishId);
-		ClientMapper clientMapper = (ClientMapper) MqttStaticUtil.nativeCache.get(clientId);
+		ChannelStatusMapper channelStatusMapper = 
+				(ChannelStatusMapper) MqttStaticUtil.nativeCache.get(ch.id().asLongText());
+		channelStatusMapper.setStatus(MqttMessageType.PUBACK);
+		MqttStaticUtil.nativeCache.put(ch.id().asLongText(), channelStatusMapper);
 		
-		String topicName = publishedMessageMapper.getTopicName();
-		SubscriberMapper subscriberMapper = (SubscriberMapper) MqttStaticUtil.nativeCache.get(topicName);
-		List<SubClient> subscribers = subscriberMapper.getSubscribers();
-		for (SubClient subClient : subscribers) {
-			if (subClient.getClientId() == clientId) {
-				subscribers.remove(subClient);
-				break;
-			}
-		}
+//		PublishedMessageMapper publishedMessageMapper = 
+//				(PublishedMessageMapper) MqttStaticUtil.nativeCache.get(publishId);
+//		ClientMapper clientMapper = (ClientMapper) MqttStaticUtil.nativeCache.get(clientId);
+//		
+//		String topicName = publishedMessageMapper.getTopicName();
+//		SubscriberMapper subscriberMapper = (SubscriberMapper) MqttStaticUtil.nativeCache.get(topicName);
+//		List<SubClient> subscribers = subscriberMapper.getSubscribers();
+//		for (SubClient subClient : subscribers) {
+//			if (subClient.getClientId() == clientId) {
+//				subscribers.remove(subClient);
+//				break;
+//			}
+//		}
 		
 		return null;
 	}
 	
 	public MqttMessage pubrec(MqttMessage mqttMessage, 
 			Channel ch) {
+		
+		ChannelStatusMapper channelStatusMapper = 
+				(ChannelStatusMapper) MqttStaticUtil.nativeCache.get(ch.id().asLongText());
+		channelStatusMapper.setStatus(MqttMessageType.PUBREC);
+		MqttStaticUtil.nativeCache.put(ch.id().asLongText(), channelStatusMapper);
 		
 		MqttFixedHeader mqttFixedHeader = mqttMessage.fixedHeader();
 		MqttFixedHeader mqttFixedHeaderPubrec = new MqttFixedHeader(
@@ -392,6 +394,11 @@ public class MqttServerHandler extends ChannelHandlerAdapter {
 	public MqttMessage pubrel(MqttMessage mqttMessage, 
 			Channel ch) {
 		
+		ChannelStatusMapper channelStatusMapper = 
+				(ChannelStatusMapper) MqttStaticUtil.nativeCache.get(ch.id().asLongText());
+		channelStatusMapper.setStatus(MqttMessageType.PUBREL);
+		MqttStaticUtil.nativeCache.put(ch.id().asLongText(), channelStatusMapper);
+				
 		MqttFixedHeader mqttFixedHeader = mqttMessage.fixedHeader();
 		MqttFixedHeader mqttFixedHeaderPubrec = new MqttFixedHeader(
 				MqttMessageType.PUBREL, 
@@ -406,6 +413,11 @@ public class MqttServerHandler extends ChannelHandlerAdapter {
 	
 	public MqttMessage pubcomp(MqttMessage mqttMessage, 
 			Channel ch) {
+		ChannelStatusMapper channelStatusMapper = 
+				(ChannelStatusMapper) MqttStaticUtil.nativeCache.get(ch.id().asLongText());
+		channelStatusMapper.setStatus(MqttMessageType.PUBCOMP);
+		MqttStaticUtil.nativeCache.put(ch.id().asLongText(), channelStatusMapper);
+		
 		MqttFixedHeader mqttFixedHeader = mqttMessage.fixedHeader();
 		MqttFixedHeader mqttFixedHeaderPubrec = new MqttFixedHeader(
 				MqttMessageType.PUBCOMP, 

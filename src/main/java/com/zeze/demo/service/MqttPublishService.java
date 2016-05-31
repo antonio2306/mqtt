@@ -24,5 +24,4 @@ public interface MqttPublishService {
 	
 	public String publishMsgExactlyOnce(MqttPublishMessage mqttPublishMessage, List<String> clientIds);
 	
-	public String publishMsg(MqttPublishMessage mqttPublishMessage, MqttQoS publishQos);
 }
