@@ -20,5 +20,6 @@
     <import resource="classpath:spring-service.xml" />
 	<!-- 数据访问层配置 -->
     <import resource="classpath:spring-dao.xml" />
+    <import resource="classpath:spring_mysql.xml" />
 
 </beans>

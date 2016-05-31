@@ -6,11 +6,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.factory.annotation.Autowired;
+
 import com.zeze.demo.cache.mapper.ClientMapper;
 import com.zeze.demo.cache.mapper.MqttClientMapper;
 import com.zeze.demo.cache.mapper.PublishedMessageMapper;
 import com.zeze.demo.cache.mapper.SubscriberMapper;
 import com.zeze.demo.cache.mapper.SubClient;
+import com.zeze.demo.mybatis.auto.TAccount;
+import com.zeze.demo.service.MysqlAccountService;
 import com.zeze.demo.service.impl.CacheServiceImpl;
 import com.zeze.demo.service.impl.MqttPublishServiceImpl;
 import com.zeze.demo.util.SpringServerContextsUtil;
@@ -60,6 +64,11 @@ public class MqttServerHandler extends ChannelHandlerAdapter {
 	public static MqttPublishServiceImpl mqttPublishServiceImpl = (MqttPublishServiceImpl) 
 			SpringServerContextsUtil.getBean("mqttPublishServiceImpl");
 	
+	
+	@Autowired
+	MysqlAccountService mysqlAccountService;
+	
+	
 	@Override
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
 		cause.printStackTrace();
@@ -83,36 +92,34 @@ public class MqttServerHandler extends ChannelHandlerAdapter {
 			MqttConnAckMessage connAckMessage = connect((MqttConnectMessage)mqttMessage, ctx.channel());
             ctx.writeAndFlush(connAckMessage);
 			break;
-		//case CONNACK:
-			//TODO
 		case PUBLISH:
 			System.out.println("publish: \r\n" + mqttMessage.toString());
 			MqttPubAckMessage mqttPubAckMessage = publish((MqttPublishMessage)mqttMessage, ctx.channel());
 			ctx.writeAndFlush(mqttPubAckMessage);
 			break;
-			//TODO
 		case PUBACK:
 			System.out.println("PUBACK: \r\n" + mqttMessage.toString());
 			puback(mqttMessage, ctx.channel());
-			//TODO
+			break;
 		case PUBREC:
-			//TODO
-			
+			System.out.println("PUBREC: \r\n" + mqttMessage.toString());
+			MqttMessage ack = pubrec(mqttMessage, ctx.channel());
+			break;
 		case PUBREL:
-			//TODO
+			System.out.println("PUBREL: \r\n" + mqttMessage.toString());
+			break;
 		case PUBCOMP:
-			//TODO
+			System.out.println("PUBCOMP: \r\n" + mqttMessage.toString());
+			break;
 		case SUBSCRIBE:
 			System.out.println("SUBSCRIBE: \r\n" + mqttMessage.toString());
 			MqttSubAckMessage mqttSubAckMessage = subscribe((MqttSubscribeMessage)mqttMessage, ctx.channel());
 			ctx.writeAndFlush(mqttSubAckMessage);
 			break;
 		//case SUBACK:
-			//TODO
 		case UNSUBSCRIBE:
-			//TODO
+			System.out.println("UNSUBSCRIBE: \r\n" + mqttMessage.toString());
 		//case UNSUBACK:
-			//TODO
 		case PINGREQ:
 			System.out.println("PINGREQ: \r\n" + mqttMessage.toString());
 			//返回心跳消息
@@ -120,9 +127,8 @@ public class MqttServerHandler extends ChannelHandlerAdapter {
 			ByteBuf buff = ctx.alloc().buffer();
 			buff.writeBytes(pingresp);
             ctx.writeAndFlush(buff);
-			//TODO
+            break;
 		//case PINGRESP:
-			//TODO
 		case DISCONNECT:
 			System.out.println("PINGREQ: \r\n" + mqttMessage.toString());
 			//返回断开连接消息
@@ -130,7 +136,7 @@ public class MqttServerHandler extends ChannelHandlerAdapter {
 			ByteBuf buff1 = ctx.alloc().buffer();
 			buff1.writeBytes(message);
             ctx.writeAndFlush(buff1);
-			//TODO
+            break;
 		default:
 			break;
 
@@ -163,7 +169,11 @@ public class MqttServerHandler extends ChannelHandlerAdapter {
 		MqttConnectPayload mqttConnectPayload =  mqttConnectMessage.payload();
 		if (mqttConnectVariableHeader.hasUserName()) {
 			String username = mqttConnectPayload.userName();
-			//TODO   身份验证！！！！待添加
+			String password = mqttConnectPayload.password();
+			List<TAccount> tas = mysqlAccountService.find(username, password);
+			if (tas == null) {
+				return null;
+			}
 		}
 		//保存对应关系
 		channelGroup.add(ch);

@@ -57,6 +57,7 @@ public class MqttPublishServiceImpl implements MqttPublishService {
 			
 			break;
 		case EXACTLY_ONCE:
+			
 			break;
 		default:
 			break;
