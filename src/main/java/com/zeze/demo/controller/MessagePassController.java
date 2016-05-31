@@ -15,8 +15,7 @@ public class MessagePassController {
 
 	@Autowired
 	ContollerService contollerService;
-	
-	
+
 	@RequestMapping(value="/msg/send", method = RequestMethod.GET)
 	@ResponseBody
 	public String sendMessage(String msg) {

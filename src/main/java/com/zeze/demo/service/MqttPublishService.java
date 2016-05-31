@@ -13,6 +13,10 @@ public interface MqttPublishService {
 	//发送消息至特定会话
 	public String sendMsg(String clientId, Object msg);
 	
+	public String checkAndSendMsg(String clientId, Object msg);
+	
+	public String checkWaitAndSendMsg(String clientId, Object msg);
+	
 	//广播消息
 	public String publishMsgAtMostOnce(MqttPublishMessage mqttPublishMessage, List<String> clientIds);
 	
